@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "chromedriver": "^145.0.0",
+    "lucide-react": "^0.563.0",
     "next": "16.1.6",
     "puppeteer": "^24.36.1",
     "react": "19.2.3",
@@ -17,9 +18,11 @@
     "selenium-webdriver": "^4.40.0"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/postcss": "^4.1.18",
+    "autoprefixer": "^10.4.24",
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
-    "tailwindcss": "^4"
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18"
   }
 }
