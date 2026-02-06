@@ -5,11 +5,11 @@ export async function POST(req) {
     let browser;
     try {
         const body = await req.json();
-        const { firstName, lastName, email, phone, gender } = body;
+        const { firstName, lastName, email, phone, gender, payRate, endDate } = body;
 
         console.log("Launching browser...");
         browser = await puppeteer.launch({
-            headless: "new",
+            headless: false,
             args: [
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -289,6 +289,186 @@ export async function POST(req) {
             console.log("Confirmation not needed");
         }
 
+        console.log("✅ Staff profile created");
+
+        // =========================
+        // NEW: PAY RATE WORKFLOW
+        // =========================
+        console.log("\n=== ADDING PAY RATE ===");
+
+        // Wait for staff detail page to load (can be slow)
+        console.log("Waiting for staff detail page to load...");
+        await wait(5000); // Increased wait time for slow loading
+        await waitForAngular();
+
+        // Click on Pay Rates tab with extended timeout and retry logic
+        console.log("Clicking Pay Rates tab...");
+        let payRateTabClicked = false;
+        let attempts = 0;
+        const maxAttempts = 3;
+
+        while (!payRateTabClicked && attempts < maxAttempts) {
+            attempts++;
+            console.log(`Attempt ${attempts} to click Pay Rates tab...`);
+
+            try {
+                await page.waitForSelector("a[data-target='#StaffPayrate']", { timeout: 30000 }); // Extended timeout
+                payRateTabClicked = await page.evaluate(() => {
+                    const payRateTab = document.querySelector("a[data-target='#StaffPayrate']");
+                    if (payRateTab) {
+                        payRateTab.click();
+                        return true;
+                    } else {
+                        const links = Array.from(document.querySelectorAll('a.tabs_link'));
+                        const tab = links.find(a => a.textContent.includes('Pay Rates') || a.textContent.includes('Payroll'));
+                        if (tab) {
+                            tab.click();
+                            return true;
+                        }
+                    }
+                    return false;
+                });
+
+                if (payRateTabClicked) {
+                    await wait(3000); // Give tab time to load
+                    await waitForAngular();
+                    console.log("✅ Pay Rates tab clicked successfully");
+                }
+            } catch (e) {
+                console.log(`Pay Rates tab not ready yet, waiting...`);
+                await wait(5000);
+            }
+        }
+
+        if (!payRateTabClicked) {
+            throw new Error("Could not click Pay Rates tab after multiple attempts");
+        }
+
+        // Open Add Hourly Pay Rate modal with multiple selector attempts
+        console.log("Opening Add PayRate modal...");
+        await wait(2000);
+
+        const modalOpened = await page.evaluate(() => {
+            // Try the link first
+            const link = document.querySelector("a[data-target='#ManageHourlyPayroll']");
+            if (link) {
+                link.click();
+                return true;
+            }
+
+            // Try the FAB button
+            const fabButton = document.querySelector("button[data-target='#ManageHourlyPayroll']");
+            if (fabButton) {
+                fabButton.click();
+                return true;
+            }
+
+            // Try finding by text content
+            const allLinks = Array.from(document.querySelectorAll('a'));
+            const addPayRateLink = allLinks.find(a =>
+                a.textContent.includes('Add Hourly Pay Rates')
+            );
+            if (addPayRateLink) {
+                addPayRateLink.click();
+                return true;
+            }
+
+            // Try by ng-click attribute
+            const ngClickButtons = Array.from(document.querySelectorAll('[ng-click*="AddPayroll"]'));
+            if (ngClickButtons.length > 0) {
+                ngClickButtons[0].click();
+                return true;
+            }
+
+            return false;
+        });
+
+        if (!modalOpened) {
+            throw new Error("Could not find Add Hourly Pay Rate button");
+        }
+
+        console.log("✅ Pay Rate modal opened");
+        await wait(2000);
+        await waitForAngular();
+
+        // Select Earning Code: Hourly
+        console.log("Selecting Earning Code: Hourly");
+        await page.waitForSelector("md-select[name='singlePayrollselect0']", { timeout: 10000 });
+        await page.click("md-select[name='singlePayrollselect0']");
+        await wait(1000);
+
+        await page.evaluate(() => {
+            const options = Array.from(document.querySelectorAll('md-option'));
+            const hourlyOption = options.find(opt => {
+                const div = opt.querySelector('div');
+                return div && div.textContent.trim() === 'Hourly';
+            });
+            if (hourlyOption) hourlyOption.click();
+        });
+        await wait(500);
+
+        // 1. Enter From Date (StartDate)
+        console.log("Setting From Date to today...");
+        const today = new Date();
+        const todayFormatted = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
+
+        await page.waitForSelector('aloha-datepicker-editable[ng-model*="StartDate"]', { timeout: 10000 });
+
+        await page.evaluate((date) => {
+            // Target specifically by the Angular model name
+            const container = document.querySelector('aloha-datepicker-editable[ng-model*="StartDate"]');
+            const input = container?.querySelector('input.md-datepicker-input');
+
+            if (input) {
+                input.value = date;
+                // Trigger Angular's digest cycle
+                ['input', 'change', 'blur'].forEach(event =>
+                    input.dispatchEvent(new Event(event, { bubbles: true }))
+                );
+            }
+        }, todayFormatted);
+
+        await wait(1000); // Small pause for stability
+
+        // 2. Enter To Date (EndDate)
+        console.log(`Setting To Date to ${endDate}...`);
+        const endDateObj = new Date(endDate);
+        const endDateFormatted = `${String(endDateObj.getMonth() + 1).padStart(2, '0')}/${String(endDateObj.getDate()).padStart(2, '0')}/${endDateObj.getFullYear()}`;
+
+        await page.waitForSelector('aloha-datepicker-editable[ng-model*="EndDate"]', { timeout: 10000 });
+
+        await page.evaluate((date) => {
+            // Target specifically by the Angular model name
+            const container = document.querySelector('aloha-datepicker-editable[ng-model*="EndDate"]');
+            const input = container?.querySelector('input.md-datepicker-input');
+
+            if (input) {
+                input.value = date;
+                // Trigger Angular's digest cycle
+                ['input', 'change', 'blur'].forEach(event =>
+                    input.dispatchEvent(new Event(event, { bubbles: true }))
+                );
+            }
+        }, endDateFormatted);
+
+        await wait(500);
+
+        // Enter Rate
+        console.log(`Setting hourly rate to $${payRate}...`);
+        await page.waitForSelector("input[name='Rate']", { timeout: 10000 });
+        await typeInAngularField("input[name='Rate']", payRate);
+
+        // Save Pay Rate
+        console.log("Saving pay rate...");
+        await page.evaluate(() => {
+            const buttons = Array.from(document.querySelectorAll('button'));
+            const saveBtn = buttons.find(b => b.textContent.trim() === 'Save');
+            if (saveBtn) saveBtn.click();
+        });
+        await wait(3000);
+        await waitForAngular();
+
+        console.log("✅ Pay rate added successfully");
         console.log("✅ AlohaABA workflow complete");
 
         // =========================
@@ -463,7 +643,7 @@ export async function POST(req) {
             { timeout: 5000 }
         );
 
-        await wait(10000)
+        await wait(3000);
         await page.evaluate(() => {
             const modal = document.querySelector('.q-dialog') || document.querySelector('[role="dialog"]');
             if (!modal) {
@@ -481,20 +661,28 @@ export async function POST(req) {
             }
         });
 
-        await wait(3000);
+        await wait(5000);
 
         console.log("✅ Hirasmus workflow complete");
-        console.log(`\n🎉 Successfully created BT: ${firstName} ${lastName}`);
+        console.log(`\n🎉 Successfully created BT: ${firstName} ${lastName} with pay rate $${payRate}/hr`);
 
+        // Close browser BEFORE sending response
+        if (browser) {
+            await browser.close();
+            console.log("Browser closed successfully");
+            browser = null;
+        }
 
         return NextResponse.json({
             status: 'success',
-            message: `BT ${firstName} ${lastName} created in both AlohaABA and Hirasmus`,
+            message: `BT ${firstName} ${lastName} created with $${payRate}/hr pay rate`,
             data: {
                 firstName,
                 lastName,
                 email,
-                phone
+                phone,
+                payRate,
+                endDate
             }
         });
 
@@ -502,13 +690,18 @@ export async function POST(req) {
         console.error("\n❌ ERROR:", error.message);
         console.error("Stack:", error.stack);
 
-        if (browser) {
-            await browser.close();
-        }
-
         return NextResponse.json({
             status: 'error',
             message: error.message
         }, { status: 500 });
+    } finally {
+        if (browser) {
+            try {
+                await browser.close();
+                console.log("Browser closed in finally block");
+            } catch (closeError) {
+                console.error("Error closing browser:", closeError);
+            }
+        }
     }
 }

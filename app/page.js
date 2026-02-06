@@ -1,10 +1,16 @@
 "use client"
 import { useState } from 'react';
-import { UserPlus, ShieldCheck, Phone, Mail, ChevronRight } from 'lucide-react';
+import { UserPlus, ShieldCheck, Phone, Mail, ChevronRight, DollarSign, Calendar } from 'lucide-react';
 
 export default function Home() {
   const [formData, setFormData] = useState({ 
-    firstName: '', lastName: '', email: '', phone: '', gender: 'Female' 
+    firstName: '', 
+    lastName: '', 
+    email: '', 
+    phone: '', 
+    gender: 'Female',
+    payRate: '22',
+    endDate: '' // User-provided end date
   });
   const [status, setStatus] = useState({ message: '', type: 'idle' }); 
 
@@ -18,15 +24,31 @@ export default function Home() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(formData),
         });
+
+        if (!res.ok) {
+            throw new Error(`HTTP error! status: ${res.status}`);
+        }
       
         const data = await res.json();
+        console.log(data);
+        
         if (data.status === 'success') {
-            setStatus({ message: 'BT Successfully Integrated into Systems', type: 'success' });
+            setStatus({ 
+                message: 'BT Successfully Integrated into Systems', 
+                type: 'success' 
+            });
         } else {
-            setStatus({ message: `Critical Error: ${data.error || 'Check Logs'}`, type: 'error' });
+            setStatus({ 
+                message: `Critical Error: ${data.message || 'Check Logs'}`, 
+                type: 'error' 
+            });
         }
     } catch (err) {
-        setStatus({ message: 'Network Failure: VPS Unreachable', type: 'error' });
+        console.error('Frontend error:', err);
+        setStatus({ 
+            message: `Network Failure: ${err.message}`, 
+            type: 'error' 
+        });
     }
   };
 
@@ -46,7 +68,7 @@ export default function Home() {
           <div className="flex justify-between items-start">
             <div>
               <h2 className="text-3xl font-black tracking-tighter uppercase mb-1">BT Onboarding</h2>
-              <p className="text-white/40 text-[10px] uppercase tracking-[0.3em] font-bold">Automation Module v2.4</p>
+              <p className="text-white/40 text-[10px] uppercase tracking-[0.3em] font-bold">Automation Module v2.5</p>
             </div>
             <div className="bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full">
                <div className="flex items-center gap-2">
@@ -60,6 +82,7 @@ export default function Home() {
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-10 space-y-8">
           
+          {/* Name Fields */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <InputGroup label="First Name" icon={<UserPlus size={14}/>}>
               <input 
@@ -80,6 +103,7 @@ export default function Home() {
             </InputGroup>
           </div>
 
+          {/* Email */}
           <InputGroup label="Corporate Email" icon={<Mail size={14}/>}>
             <input 
               type="email"
@@ -90,6 +114,7 @@ export default function Home() {
             />
           </InputGroup>
 
+          {/* Phone & Gender */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <InputGroup label="Contact Phone" icon={<Phone size={14}/>}>
               <input 
@@ -111,6 +136,31 @@ export default function Home() {
             </InputGroup>
           </div>
 
+          {/* Pay Rate & End Date */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <InputGroup label="Hourly Pay Rate" icon={<DollarSign size={14}/>}>
+              <input 
+                type="number"
+                step="0.01"
+                min="0"
+                className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-medium focus:outline-none focus:bg-white/10 focus:border-blue-500/50 transition-all placeholder:text-white/10"
+                placeholder="22.00" 
+                value={formData.payRate}
+                onChange={e => setFormData({...formData, payRate: e.target.value})} 
+                required 
+              />
+            </InputGroup>
+            
+            <InputGroup label="Contract End Date" icon={<Calendar size={14}/>}>
+              <input 
+                type="date"
+                className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-sm font-medium focus:outline-none focus:bg-white/10 focus:border-blue-500/50 transition-all placeholder:text-white/10 text-white/60"
+                onChange={e => setFormData({...formData, endDate: e.target.value})} 
+                required 
+              />
+            </InputGroup>
+          </div>
+
           {/* Action Button */}
           <button 
             type="submit" 
@@ -125,7 +175,7 @@ export default function Home() {
           </button>
         </form>
 
-        {/* Status Section (The StatCard Theme) */}
+        {/* Status Section */}
         {status.message && (
           <div className="p-10 bg-white/[0.02] border-t border-white/10 animate-in slide-in-from-bottom-4 duration-500">
              <div className={`p-6 rounded-[2rem] border flex items-center gap-4
